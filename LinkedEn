@@ -178,10 +178,15 @@ async function searchGoogle(company, title) {
                     .split('|')[0].trim()
                     .split(',')[0].trim()
                     .split('(')[0].trim();
-        var parts = emp.split(" ").length
+        var parts = empData.split(" ").length
         if (parts <= 3){
-          console.log(emp);
-          totalEmployees.push(emp);
+          try {
+            console.log(empData);
+            totalEmployees.push(empData);
+          } catch(err){
+
+          }
+ 
         }
       }
       
