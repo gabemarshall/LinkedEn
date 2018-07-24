@@ -1,0 +1,221 @@
+#!/usr/bin/env node
+// If you aren't getting good results, try disabling headless mode with --debug
+// https://github.com/GoogleChrome/puppeteer/issues/665
+const puppeteer = require("puppeteer");
+const argv = require("yargs").argv;
+const fs = require("fs");
+
+let totalEmployees = []
+let outputFile = ""
+if (argv.company && argv.title) {
+  outputFile = argv.company.toLowerCase().replace(' ','-')
+  outputFile += "-"+argv.title.toLowerCase().replace(' ','-')
+  outputFile += "s.txt"
+} else if (argv.company){
+  outputFile = argv.company.toLowerCase().replace(' ','-')
+  outputFile += "-employees.txt"
+}
+
+function randomPos(v) {
+  return Math.floor(Math.random() * v) + 1;
+}
+
+(async () => {
+  
+  
+  if (argv.company && argv.title) {
+    
+    
+    let company = argv.company.trim();
+    let title = argv.title.trim();
+    
+    await searchGoogle(company, title);
+  } else if (argv.company){
+    let company = argv.company.trim();
+    await searchGoogle(company);
+  } else {
+    console.warn("Missing required parameters, please try again");
+    console.log("");
+    console.log("Ex: ./LinkedEn --company='Evil Corp' --title='System Engineer' ");
+  }
+})();
+
+
+const prepPage = async page => {
+  // Use dev tools to clear cookies
+  await page._client.send("Network.clearBrowserCookies");
+  // Set UserAgent to non-headless agent (chosen at random)
+  let agents = [
+    "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 6.2; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.10; rv:34.0) Gecko/20100101 Firefox/34.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 6.3; WOW64; rv:34.0) Gecko/20100101 Firefox/34.0",
+    "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 6.2; WOW64; rv:34.0) Gecko/20100101 Firefox/34.0",
+    "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Safari/537.36",
+  ];
+
+  var agent = agents[Math.floor(Math.random() * agents.length)];
+  const userAgent = agent;
+  // Set headers normally found in actual user requests
+  await page.setExtraHTTPHeaders({
+    'Accept-Language': 'en-GB,en-US;q=0.9,en;q=0.8'
+  });
+
+  await page.setUserAgent(userAgent);
+  // Trick the browser into thinking we're not a headless webdriver by overriding
+  // the getter for navigator
+  await page.evaluateOnNewDocument(() => {
+    Object.defineProperty(navigator, "webdriver", {
+      get: () => false
+    });
+  });
+};
+
+async function searchGoogle(company, title) {
+  //let searchTerm = 'site:linkedin.com -intitle:"Top" -inurl:jobs -inurl:company -inurl:"/in/" ';
+  let searchTerm = 'site:linkedin.com -intitle:"Top" -inurl:"Salaries in" -intitle:"Directory" -intitle:"Profiles" -inurl:jobs -inurl:company ';
+  searchTerm += '"'+company+'"'
+
+  if (title){
+    searchTerm += ' "'+title+'"'
+  }
+
+  let headless = true
+  if (argv.debug){
+    headless = false
+  }
+  const browser = await puppeteer.launch({
+    args: ["--no-sandbox"],
+    headless: headless,
+    slowMo: 1,
+    timeout: 95000
+  });
+  const x = 1440;
+  const y = 877;
+  const page = await browser.newPage();
+
+  // Run some prep steps to make sure we aren't detected as a headless browser.
+  await prepPage(page);
+
+  // Block unncessary resources from being loaded
+  await page.setRequestInterception(true);
+  const block_ressources = [
+    "image",
+    "stylesheet",
+    "media",
+    "font",
+    "texttrack",
+    "object",
+    "beacon",
+    "csp_report",
+    "imageset"
+  ];
+  page.on("request", request => {
+    if (block_ressources.indexOf(request.resourceType) > 0) request.abort();
+    else request.continue();
+  });
+  
+  // Set the viewport to something realistic
+  await page.setViewport({ width: x, height: y });
+
+  // Browse to the need help logging in page
+  await page
+    .goto("https://www.google.com/", {
+      timeout: 90000
+    })
+    .catch(() => {});
+
+  await page.waitForSelector('#tsf > div.tsf-p > div.jsb > center > input[type="submit"]:nth-child(1)',{timeout:80000})
+  // Enter the remaining biographical data
+  // await page.type("#lst-ib", searchTerm).catch(() => {
+  //   console.log("err");
+  // });
+  
+  const EnterText = async (selector, text) => {
+    await page.click(selector);
+    await page.keyboard.type(text);
+  }
+
+  await EnterText('#lst-ib', searchTerm);
+
+  //page.keyboard.type
+  // 
+  // Attempt to emulate mouse random user behavior (mouse movement, clicking).. no idea if this actually helps
+  await page.mouse.click(randomPos(x), 5, { button: "left" });
+  await page.mouse.move(randomPos(x), randomPos(y));
+  await page.mouse.move(randomPos(x), randomPos(y));
+  await page.click(
+    '#tsf > div.tsf-p > div.jsb > center > input[type="submit"]:nth-child(1)'
+  );
+
+  async function handlePage(pg){
+    // BEGIN FUNCTION
+      await page.waitForSelector('.srg', {timeout: 6000}).catch(() => { console.log("Detected as a bot ;( Try again later or from a different ip");process.exit(0)});
+      await page.waitForSelector('#rso > div > div > div:nth-child(1) > div > div > h3 > a')
+      
+      const employees = await page.evaluate(() => {
+        var employeeArray = []
+        for (i=1;i<11;i++){
+          try {
+            test = document.querySelector('#rso > div > div > div:nth-child('+i+') > div > div > h3 > a').textContent
+          } catch(err){
+            
+          }
+          
+          // console.log(test);
+          employeeArray.push(test)
+        }
+            
+        return employeeArray
+        
+      })
+      for (i=0;i<employees.length;i++){
+        var empTitle = employees[i].split('-')[1].trim()
+        var empData = employees[i]
+                    .split('-')[0].trim()
+                    .split('|')[0].trim()
+                    .split(',')[0].trim()
+                    .split('(')[0].trim();
+        var parts = emp.split(" ").length
+        if (parts <= 3){
+          console.log(emp);
+          totalEmployees.push(emp);
+        }
+      }
+      
+      await page.waitFor(2000);
+      pg = 2 + pg;
+      pg = pg.toString();
+      // pnnext for mobile
+      await page.click('#nav > tbody > tr > td:nth-child('+pg+') > a');
+      // END FUNCTION    
+  }
+      // For loops with promises r hard ;( This should do for now though
+      await handlePage(1);
+      await handlePage(2);
+      await handlePage(3);
+      await handlePage(4);
+      await handlePage(5);
+      await handlePage(6);
+      await handlePage(7);
+      await handlePage(8);
+      await handlePage(9);
+      await handlePage(6);
+      await handlePage(6);
+      await handlePage(6);
+      await handlePage(6);
+      await handlePage(6);
+      await handlePage(6);
+  
+
+  
+      console.log(totalEmployees.length + " names were scraped!")
+      
+      fs.writeFileSync('./'+outputFile, totalEmployees.join('\n'));
+      console.log("Output saved to "+outputFile);
+  //
+  await browser.close();  
+
+}
