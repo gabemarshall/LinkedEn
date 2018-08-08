@@ -17,4 +17,6 @@ After running the script, you will likely be flagged as a bot and get hit with g
 
 ```
 ./LinkedEn --company='Evil Corp' --title='System Engineer'
+# Google Search
+# site:linkedin.com -intitle:"Top" -inurl:"Salaries in" -intitle:"Directory" -intitle:"Profiles" -inurl:jobs -inurl:company "Evil Corp" "System Engineer"
 ```
