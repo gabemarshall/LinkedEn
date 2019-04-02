@@ -118,7 +118,6 @@ async function searchGoogle(company, title) {
   // Set the viewport to something realistic
   await page.setViewport({ width: x, height: y });
 
-  // Browse to the need help logging in page
   await page
     .goto("https://www.google.com/", {
       timeout: 90000
@@ -129,10 +128,6 @@ async function searchGoogle(company, title) {
     '#tsf > div.tsf-p > div.jsb > center > input[type="submit"]:nth-child(1)',
     { timeout: 80000 }
   );
-  // Enter the remaining biographical data
-  // await page.type("#lst-ib", searchTerm).catch(() => {
-  //   console.log("err");
-  // });
 
   const EnterText = async (selector, text) => {
     await page.click(selector);
@@ -171,8 +166,6 @@ async function searchGoogle(company, title) {
             "#rso > div > div > div:nth-child(" + i + ") > div > div > h3 > a"
           ).textContent;
         } catch (err) {}
-
-        // console.log(test);
         employeeArray.push(test);
       }
 
