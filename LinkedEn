@@ -60,14 +60,50 @@ const prepPage = async page => {
     "Accept-Language": "en-GB,en-US;q=0.9,en;q=0.8"
   });
 
-  await page.setUserAgent(userAgent);
-  // Trick the browser into thinking we're not a headless webdriver by overriding
-  // the getter for navigator
-  await page.evaluateOnNewDocument(() => {
-    Object.defineProperty(navigator, "webdriver", {
-      get: () => false
+    await page.setUserAgent(userAgent);
+    // Trick the browser into thinking we're not headless by overriding various properties to pass tests defined in https://github.com/antoinevastel/fpscanner
+
+    await page.evaluateOnNewDocument(() => {
+
+        Object.defineProperty(navigator, "webdriver", {
+            get: () => false
+        });
+
+        Object.defineProperty(window, "chrome", {
+            get: () => true
+        });
+
+        Object.defineProperty(Notification, "permission", {
+            get: () => "default"
+        });
+
+        Object.defineProperty(navigator, "permissions", {
+            query: () => { state: 'prompt' }
+        });
+
+        Object.defineProperty(navigator, "getBattery", {
+          get: () => true
+        });
+
+        Object.defineProperty(navigator, "plugins", {
+            get: () => [
+                { 0: MimeType, 'application/x-google-chrome-pdf': MimeType, name: "Chrome PDF Plugin", filename: "internal-pdf-viewer", description: "Portable Document Format", length: 1 },
+                { 0: MimeType, 'application/pdf': MimeType, name: "Chrome PDF Viewer", filename: "mhjfbmdgcfjbbpaeojofohoefgiehjai", description: "", length: 1 },
+                { 0: MimeType, 'application/pdf': MimeType, name: "Chrome PDF Viewer", filename: "mhjfbmdgcfjbbpaeojofohoefgiehjai", description: "", length: 1 },
+                { 0: MimeType, 1: MimeType, 'application/x-nacl': MimeType, 'application/x-pnacl': MimeType, name: "Native Client", filename: "internal-nacl-plugin", description: "" }
+            ]
+        });
+
+        Object.defineProperty(navigator, "deviceMemory", {
+            get: () => 8
+        });        
+        Object.defineProperty(navigator, "bluetooth", {
+            get: () => true
+        });
+      
+        let tmpLanguages = ['en-US', 'en', 'fr'];
+        navigator.languages.push(tmpLanguages);
     });
-  });
 };
 
 async function searchGoogle(company, title) {
@@ -124,17 +160,20 @@ async function searchGoogle(company, title) {
     })
     .catch(() => {});
 
-  await page.waitForSelector(
-    '#tsf > div.tsf-p > div.jsb > center > input[type="submit"]:nth-child(1)',
-    { timeout: 80000 }
-  );
+  await page.waitFor(500);
+  // await page.waitForSelector(
+  //   '#tsf > div:nth-child(2) > div > div.RNNXgb > div > div.a4bIc > input',
+  //   { timeout: 80000 }
+  // );
 
   const EnterText = async (selector, text) => {
     await page.click(selector);
     await page.keyboard.type(text);
   };
 
-  await EnterText("#lst-ib", searchTerm);
+  await EnterText("#tsf > div:nth-child(2) > div > div.RNNXgb > div > div.a4bIc > input", searchTerm);
+  await page.waitFor(250);
+
 
   //page.keyboard.type
   //
@@ -142,20 +181,23 @@ async function searchGoogle(company, title) {
   await page.mouse.click(randomPos(x), 5, { button: "left" });
   await page.mouse.move(randomPos(x), randomPos(y));
   await page.mouse.move(randomPos(x), randomPos(y));
-  await page.click(
-    '#tsf > div.tsf-p > div.jsb > center > input[type="submit"]:nth-child(1)'
-  );
+
+  // These didn't work
+  // await page.keyboard.type(String.fromCharCode(13));
+  // await page.keyboard.press('Enter');
+  // await page.keyboard.sendCharacter(String.fromCharCode(13))
+  await (await page.$('input[type="text"]')).press('Enter');
 
   async function handlePage(pg) {
     // BEGIN FUNCTION
-    await page.waitForSelector(".srg", { timeout: 6000 }).catch(() => {
+    await page.waitForSelector(".srg", { timeout: 60000 }).catch(() => {
       console.log(
         "Detected as a bot ;( Try again later or from a different ip"
       );
       process.exit(0);
     });
     await page.waitForSelector(
-      "#rso > div > div > div:nth-child(1) > div > div > h3 > a"
+      "#rso > div > div > div:nth-child(1) > div > div > div.r > a > h3"
     );
 
     const employees = await page.evaluate(() => {
@@ -163,7 +205,7 @@ async function searchGoogle(company, title) {
       for (i = 1; i < 11; i++) {
         try {
           test = document.querySelector(
-            "#rso > div > div > div:nth-child(" + i + ") > div > div > h3 > a"
+            "#rso > div > div > div:nth-child(" + i + ") > div > div > div.r > a > h3"
           ).textContent;
         } catch (err) {}
         employeeArray.push(test);
