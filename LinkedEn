@@ -10,10 +10,10 @@ let outputFile = "";
 if (argv.company && argv.title) {
   outputFile = argv.company.toLowerCase().replace(" ", "-");
   outputFile += "-" + argv.title.toLowerCase().replace(" ", "-");
-  outputFile += "s.txt";
+  outputFile += "s.csv";
 } else if (argv.company) {
   outputFile = argv.company.toLowerCase().replace(" ", "-");
-  outputFile += "-employees.txt";
+  outputFile += "-employees.csv";
 }
 
 function randomPos(v) {
@@ -60,11 +60,10 @@ const prepPage = async page => {
     "Accept-Language": "en-GB,en-US;q=0.9,en;q=0.8"
   });
 
-    await page.setUserAgent(userAgent);
-    // Trick the browser into thinking we're not headless by overriding various properties to pass tests defined in https://github.com/antoinevastel/fpscanner
-
-    await page.evaluateOnNewDocument(() => {
-
+  await page.setUserAgent(userAgent);
+  // Trick the browser into thinking we're not a headless webdriver by overriding
+  // the getter for navigator
+  await page.evaluateOnNewDocument(() => {
         Object.defineProperty(navigator, "webdriver", {
             get: () => false
         });
@@ -103,7 +102,7 @@ const prepPage = async page => {
       
         let tmpLanguages = ['en-US', 'en', 'fr'];
         navigator.languages.push(tmpLanguages);
-    });
+  });
 };
 
 async function searchGoogle(company, title) {
@@ -155,42 +154,26 @@ async function searchGoogle(company, title) {
   await page.setViewport({ width: x, height: y });
 
   await page
-    .goto("https://www.google.com/", {
+    .goto(`https://www.google.com/search?q=${searchTerm}`, {
       timeout: 90000
     })
     .catch(() => {});
 
-  await page.waitFor(500);
-  // await page.waitForSelector(
-  //   '#tsf > div:nth-child(2) > div > div.RNNXgb > div > div.a4bIc > input',
-  //   { timeout: 80000 }
+  // // Attempt to emulate mouse random user behavior (mouse movement, clicking).. no idea if this actually helps
+  await page.waitFor(1000);
+  // await page.mouse.click(randomPos(x), 5, { button: "left" });
+  await page.mouse.move(randomPos(x), randomPos(y));
+  await page.mouse.move(randomPos(x), randomPos(y));
+  await page.mouse.move(randomPos(x), randomPos(y));
+  await page.mouse.move(randomPos(x), randomPos(y));
+  await page.mouse.move(randomPos(x), randomPos(y));
+  // await page.click(
+  //   '#tsf > div.tsf-p > div.jsb > center > input[type="submit"]:nth-child(1)'
   // );
-
-  const EnterText = async (selector, text) => {
-    await page.click(selector);
-    await page.keyboard.type(text);
-  };
-
-  await EnterText("#tsf > div:nth-child(2) > div > div.RNNXgb > div > div.a4bIc > input", searchTerm);
-  await page.waitFor(250);
-
-
-  //page.keyboard.type
-  //
-  // Attempt to emulate mouse random user behavior (mouse movement, clicking).. no idea if this actually helps
-  await page.mouse.click(randomPos(x), 5, { button: "left" });
-  await page.mouse.move(randomPos(x), randomPos(y));
-  await page.mouse.move(randomPos(x), randomPos(y));
-
-  // These didn't work
-  // await page.keyboard.type(String.fromCharCode(13));
-  // await page.keyboard.press('Enter');
-  // await page.keyboard.sendCharacter(String.fromCharCode(13))
-  await (await page.$('input[type="text"]')).press('Enter');
 
   async function handlePage(pg) {
     // BEGIN FUNCTION
-    await page.waitForSelector(".srg", { timeout: 60000 }).catch(() => {
+    await page.waitForSelector(".appbar", { timeout: 6000 }).catch(() => {
       console.log(
         "Detected as a bot ;( Try again later or from a different ip"
       );
@@ -200,12 +183,19 @@ async function searchGoogle(company, title) {
       "#rso > div > div > div:nth-child(1) > div > div > div.r > a > h3"
     );
 
+    await page.mouse.move(randomPos(x), randomPos(y));
+    await page.mouse.move(randomPos(x), randomPos(y));
+    await page.mouse.move(randomPos(x), randomPos(y));
+    await page.mouse.move(randomPos(x), randomPos(y));
+    await page.mouse.move(randomPos(x), randomPos(y));    
+
+
     const employees = await page.evaluate(() => {
       var employeeArray = [];
       for (i = 1; i < 11; i++) {
         try {
           test = document.querySelector(
-            "#rso > div > div > div:nth-child(" + i + ") > div > div > div.r > a > h3"
+            '#rso > div > div > div:nth-child('+i+') > div > div > div > a > h3'
           ).textContent;
         } catch (err) {}
         employeeArray.push(test);
@@ -215,8 +205,8 @@ async function searchGoogle(company, title) {
     });
     for (i = 0; i < employees.length; i++) {
       try {
-        var empTitle = employees[i].split("-")[1].trim();
-        var empData = employees[i]
+        var empTitle = employees[i].split("-")[1].trim().replace(',','-');
+        var empName = employees[i]
           .split("-")[0]
           .trim()
           .split("|")[0]
@@ -225,10 +215,12 @@ async function searchGoogle(company, title) {
           .trim()
           .split("(")[0]
           .trim();
-        var parts = empData.split(" ").length;
+        var parts = empName.split(" ").length;
         if (parts <= 3) {
-          console.log(empData);
-          totalEmployees.push(empData);
+          var out = `${empName},${empTitle}`;
+          console.log(out);
+          fs.appendFileSync(outputFile, out+"\n");
+          totalEmployees.push(out);
         }
       } catch (err) {}
     }
@@ -259,7 +251,7 @@ async function searchGoogle(company, title) {
 
   console.log(totalEmployees.length + " names were scraped!");
 
-  fs.writeFileSync("./" + outputFile, totalEmployees.join("\n"));
+  //fs.writeFileSync("./" + outputFile, totalEmployees.join("\n"));
   console.log("Output saved to " + outputFile);
   //
   await browser.close();
